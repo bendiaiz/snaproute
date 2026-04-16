@@ -1,0 +1,15 @@
+node_modules/
+out/
+*~
+*.swo
+*.log
+build/
+.env.local
+*.tsbuildinfo
+npm-debug.log*
+.cache/
+dist/
+*.js.map
+.next/
+.env
+coverage/
