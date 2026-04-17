@@ -1,41 +1,45 @@
-import { parseEnv } from './config/env';
+import { createShortenHandler } from './handlers/shorten';
+import { createRedirectHandler } from './handlers/redirect';
+import { createStatsHandler } from './handlers/stats';
 import { createDeleteHandler } from './handlers/delete';
+import { createListHandler } from './handlers/list';
+import { parseEnv } from './config/env';
 
 export interface Env {
-  KV: KVNamespace;
-  ADMIN_SECRET: string;
+  SNAP_KV: KVNamespace;
+  API_SECRET?: string;
   BASE_URL: string;
 }
 
-export async function handleRequest(request: Request, env: Env): Promise<Response> {
-  const config = parseEnv(env);
-  const url = new URL(request.url);
-  const { pathname, method } = url as { pathname: string } & { method?: string };
-  const reqMethod = request.method;
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const config = parseEnv(env);
+    const { pathname, method } = new URL(request.url);
+    const kv: KVNamespace = env.SNAP_KV;
 
-  // DELETE /api/links/:slug
-  if (reqMethod === 'DELETE' && pathname.startsWith('/api/links/')) {
-    const deleteHandler = createDeleteHandler(env.KV, config.adminSecret);
-    return deleteHandler(request);
-  }
+    if (method === 'POST' && pathname === '/api/shorten') {
+      return createShortenHandler(kv, config)(request);
+    }
 
-  // POST /api/shorten
-  if (reqMethod === 'POST' && pathname === '/api/shorten') {
-    const { createShortenHandler } = await import('./handlers/shorten');
-    return createShortenHandler(env.KV, config.baseUrl)(request);
-  }
+    if (method === 'GET' && pathname === '/api/links') {
+      return createListHandler(kv)(request);
+    }
 
-  // GET /api/stats/:slug
-  if (reqMethod === 'GET' && pathname.startsWith('/api/stats/')) {
-    const { createStatsHandler } = await import('./handlers/stats');
-    return createStatsHandler(env.KV)(request);
-  }
+    if (method === 'GET' && pathname.startsWith('/api/stats/')) {
+      const slug = pathname.replace('/api/stats/', '');
+      return createStatsHandler(kv)(slug);
+    }
 
-  // GET /:slug — redirect
-  if (reqMethod === 'GET' && pathname.length > 1) {
-    const { createRedirectHandler } = await import('./handlers/redirect');
-    return createRedirectHandler(env.KV)(request);
-  }
+    if (method === 'DELETE' && pathname.startsWith('/api/links/')) {
+      const slug = pathname.replace('/api/links/', '');
+      return createDeleteHandler(kv)(slug, request);
+    }
 
-  return new Response('Not Found', { status: 404 });
-}
+    if (method === 'GET' && pathname !== '/') {
+      const slug = pathname.slice(1);
+      return createRedirectHandler(kv)(slug);
+    }
+
+    return new Response('Not Found', { status: 404 });
+  },
+};
