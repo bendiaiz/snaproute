@@ -1,22 +1,21 @@
 export interface LinkRecord {
-  slug: string;
   url: string;
   createdAt: number;
+  clicks: number;
   expiresAt?: number;
 }
 
-export interface KVStore {
-  get(key: string): Promise<string | null>;
-  put(key: string, value: string, options?: { expirationTtl?: number }): Promise<void>;
-  delete(key: string): Promise<void>;
+export interface LinkStore {
+  get(slug: string): Promise<LinkRecord | null>;
+  put(slug: string, record: LinkRecord): Promise<void>;
+  delete(slug: string): Promise<void>;
+  incrementClicks(slug: string): Promise<void>;
 }
 
-export function createLinkStore(kv: KVStore) {
-  const PREFIX = 'link:';
-
+export function createLinkStore(kv: KVNamespace): LinkStore {
   return {
-    async getLink(slug: string): Promise<LinkRecord | null> {
-      const raw = await kv.get(`${PREFIX}${slug}`);
+    async get(slug) {
+      const raw = await kv.get(slug);
       if (!raw) return null;
       try {
         return JSON.parse(raw) as LinkRecord;
@@ -25,25 +24,19 @@ export function createLinkStore(kv: KVStore) {
       }
     },
 
-    async putLink(record: LinkRecord, ttl?: number): Promise<void> {
-      const options = ttl ? { expirationTtl: ttl } : undefined;
-      await kv.put(`${PREFIX}${record.slug}`, JSON.stringify(record), options);
+    async put(slug, record) {
+      await kv.put(slug, JSON.stringify(record));
     },
 
-    async deleteLink(slug: string): Promise<void> {
-      await kv.delete(`${PREFIX}${slug}`);
+    async delete(slug) {
+      await kv.delete(slug);
     },
 
-    /**
-     * Checks whether a link exists and has not expired.
-     * Relies on the stored `expiresAt` field for expiry validation
-     * in cases where KV TTL may not have evicted the key yet.
-     */
-    async linkExists(slug: string): Promise<boolean> {
-      const record = await this.getLink(slug);
-      if (!record) return false;
-      if (record.expiresAt && record.expiresAt < Date.now()) return false;
-      return true;
+    async incrementClicks(slug) {
+      const record = await this.get(slug);
+      if (!record) return;
+      record.clicks += 1;
+      await kv.put(slug, JSON.stringify(record));
     },
   };
 }
