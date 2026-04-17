@@ -33,5 +33,17 @@ export function createLinkStore(kv: KVStore) {
     async deleteLink(slug: string): Promise<void> {
       await kv.delete(`${PREFIX}${slug}`);
     },
+
+    /**
+     * Checks whether a link exists and has not expired.
+     * Relies on the stored `expiresAt` field for expiry validation
+     * in cases where KV TTL may not have evicted the key yet.
+     */
+    async linkExists(slug: string): Promise<boolean> {
+      const record = await this.getLink(slug);
+      if (!record) return false;
+      if (record.expiresAt && record.expiresAt < Date.now()) return false;
+      return true;
+    },
   };
 }
