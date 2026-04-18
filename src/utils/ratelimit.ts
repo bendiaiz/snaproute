@@ -47,3 +47,18 @@ export function rateLimitHeaders(result: RateLimitResult, limit: number): Record
     'X-RateLimit-Reset': String(Math.ceil(result.resetAt / 1000)),
   };
 }
+
+/**
+ * Returns a 429 Response with rate limit headers when a request has been blocked.
+ */
+export function rateLimitExceededResponse(result: RateLimitResult, limit: number): Response {
+  const headers = {
+    ...rateLimitHeaders(result, limit),
+    'Content-Type': 'application/json',
+    'Retry-After': String(Math.ceil((result.resetAt - Date.now()) / 1000)),
+  };
+  return new Response(JSON.stringify({ error: 'Too Many Requests' }), {
+    status: 429,
+    headers,
+  });
+}
