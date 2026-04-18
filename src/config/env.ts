@@ -25,3 +25,13 @@ export function parseEnv(raw: Record<string, string | undefined>): Env {
   }
   return result.data;
 }
+
+/**
+ * Returns the list of required environment variable keys.
+ * Useful for startup checks or diagnostic logging.
+ */
+export function getRequiredEnvKeys(): string[] {
+  return Object.entries(envSchema.shape)
+    .filter(([, field]) => !(field instanceof z.ZodOptional))
+    .map(([key]) => key);
+}
