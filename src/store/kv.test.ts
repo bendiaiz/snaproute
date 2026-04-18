@@ -46,4 +46,18 @@ describe('createLinkStore', () => {
     mock.store.set('link:bad', 'not-json');
     expect(await linkStore.getLink('bad')).toBeNull();
   });
+
+  it('uses the correct KV key prefix when storing a link', async () => {
+    await linkStore.putLink(record);
+    expect(mock.store.has('link:abc123')).toBe(true);
+    expect(mock.store.has('abc123')).toBe(false);
+  });
+
+  it('overwrites an existing link with the same slug', async () => {
+    await linkStore.putLink(record);
+    const updated: LinkRecord = { ...record, url: 'https://updated.com' };
+    await linkStore.putLink(updated);
+    const result = await linkStore.getLink('abc123');
+    expect(result?.url).toBe('https://updated.com');
+  });
 });
