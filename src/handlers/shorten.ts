@@ -1,59 +1,61 @@
+import { createLinkStore } from '../store/kv';
 import { generateSlug, isValidSlug } from '../utils/nanoid';
-import { createLinkStore, KVStore, LinkRecord } from '../store/kv';
+import { sanitizeAlias, isReservedSlug } from '../utils/slugify';
+import { parseEnv } from '../config/env';
 
-export interface ShortenRequest {
+interface ShortenBody {
   url: string;
-  customSlug?: string;
-  ttl?: number;
+  alias?: string;
 }
 
-export interface ShortenResponse {
-  slug: string;
-  shortUrl: string;
-  expiresAt?: number;
-}
+export function createShortenHandler(env: Record<string, unknown>) {
+  const { BASE_URL } = parseEnv(env);
+  const store = createLinkStore(env.KV as KVNamespace);
 
-export async function handleShorten(
-  req: ShortenRequest,
-  kv: KVStore,
-  baseUrl: string
-): Promise<{ status: number; body: object }> {
-  const { url, customSlug, ttl } = req;
-
-  if (!url || !/^https?:\/\/.+/.test(url)) {
-    return { status: 400, body: { error: 'Invalid URL' } };
-  }
-
-  let slug = customSlug ?? generateSlug();
-
-  if (customSlug && !isValidSlug(customSlug)) {
-    return { status: 400, body: { error: 'Invalid custom slug' } };
-  }
-
-  const store = createLinkStore(kv);
-
-  if (customSlug) {
-    const existing = await store.getLink(slug);
-    if (existing) {
-      return { status: 409, body: { error: 'Slug already in use' } };
+  return async (request: Request): Promise<Response> => {
+    let body: ShortenBody;
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
     }
-  }
 
-  const now = Date.now();
-  const record: LinkRecord = {
-    slug,
-    url,
-    createdAt: now,
-    ...(ttl ? { expiresAt: now + ttl * 1000 } : {}),
+    const { url, alias } = body;
+
+    if (!url || typeof url !== 'string') {
+      return Response.json({ error: 'Missing required field: url' }, { status: 400 });
+    }
+
+    try {
+      new URL(url);
+    } catch {
+      return Response.json({ error: 'Invalid URL' }, { status: 400 });
+    }
+
+    let slug: string;
+
+    if (alias !== undefined) {
+      const cleaned = sanitizeAlias(alias);
+      if (!cleaned) {
+        return Response.json({ error: 'Invalid alias: must be 3-64 alphanumeric/hyphen/underscore chars' }, { status: 400 });
+      }
+      if (isReservedSlug(cleaned)) {
+        return Response.json({ error: 'Alias is reserved' }, { status: 409 });
+      }
+      const existing = await store.get(cleaned);
+      if (existing) {
+        return Response.json({ error: 'Alias already in use' }, { status: 409 });
+      }
+      slug = cleaned;
+    } else {
+      slug = generateSlug();
+    }
+
+    await store.put(slug, { url, createdAt: new Date().toISOString() });
+
+    return Response.json(
+      { slug, shortUrl: `${BASE_URL}/${slug}`, url },
+      { status: 201 }
+    );
   };
-
-  await store.putLink(record, ttl);
-
-  const response: ShortenResponse = {
-    slug,
-    shortUrl: `${baseUrl}/${slug}`,
-    ...(record.expiresAt ? { expiresAt: record.expiresAt } : {}),
-  };
-
-  return { status: 201, body: response };
 }
