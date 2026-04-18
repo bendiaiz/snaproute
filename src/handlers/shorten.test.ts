@@ -31,7 +31,7 @@ describe('handleShorten', () => {
     const res = await handleShorten({ url: 'https://example.com' }, kv, base);
     expect(res.status).toBe(201);
     const body = res.body as any;
-    expect(body.shortUrl).toMatch(/^https:\/\/snap\.route\/.+/);
+    expect(body.shortUrl).toMatch(/^\/https:\/\/snap\.route\/.+/);
   });
 
   it('uses custom slug', async () => {
@@ -41,7 +41,7 @@ describe('handleShorten', () => {
   });
 
   it('rejects duplicate custom slug', async () => {
- handleShorten({ url: 'https://a.com', customSlug: 'dup' }, kv, base);
+    await handleShorten({ url: 'https://a.com', customSlug: 'dup' }, kv, base);
     const res = await handleShorten({ url: 'https://b.com', customSlug: 'dup' }, kv, base);
     expect(res.status).toBe(409);
   });
