@@ -10,6 +10,7 @@ export interface LinkStore {
   put(slug: string, record: LinkRecord): Promise<void>;
   delete(slug: string): Promise<void>;
   incrementClicks(slug: string): Promise<void>;
+  list(): Promise<string[]>;
 }
 
 export function createLinkStore(kv: KVNamespace): LinkStore {
@@ -37,6 +38,11 @@ export function createLinkStore(kv: KVNamespace): LinkStore {
       if (!record) return;
       record.clicks += 1;
       await kv.put(slug, JSON.stringify(record));
+    },
+
+    async list() {
+      const result = await kv.list();
+      return result.keys.map((k) => k.name);
     },
   };
 }
