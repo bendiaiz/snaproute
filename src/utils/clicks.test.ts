@@ -36,6 +36,12 @@ describe("summarizeClicks", () => {
     expect(s.last30d).toBe(3);
     expect(s.total).toBe(4);
   });
+
+  it("counts an event exactly on the 24h boundary as within last24h", () => {
+    const events = [makeEvent({ ts: NOW - 24 * H })];
+    const s = summarizeClicks(events, NOW);
+    expect(s.last24h).toBe(1);
+  });
 });
 
 describe("topCountries", () => {
@@ -76,5 +82,15 @@ describe("topReferers", () => {
   it("uses (direct) for missing referer", () => {
     const events = [makeEvent({ referer: undefined })];
     expect(topReferers(events)[0].referer).toBe("(direct)");
+  });
+
+  it("respects limit", () => {
+    const events = [
+      "https://a.com",
+      "https://b.com",
+      "https://c.com",
+      "https://d.com",
+    ].map((r) => makeEvent({ referer: r }));
+    expect(topReferers(events, 2)).toHaveLength(2);
   });
 });
