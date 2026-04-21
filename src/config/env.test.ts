@@ -31,6 +31,12 @@ describe("parseEnv", () => {
     );
   });
 
+  it("throws when BASE_URL is missing", () => {
+    expect(() => parseEnv({ KV_NAMESPACE: "snaproute_kv" })).toThrow(
+      "Invalid environment configuration"
+    );
+  });
+
   it("throws when BASE_URL is not a valid URL", () => {
     expect(() =>
       parseEnv({ ...validEnv, BASE_URL: "not-a-url" })
@@ -40,6 +46,16 @@ describe("parseEnv", () => {
   it("throws when KV_NAMESPACE is empty string", () => {
     expect(() =>
       parseEnv({ ...validEnv, KV_NAMESPACE: "" })
+    ).toThrow("Invalid environment configuration");
+  });
+
+  it("throws when SHORT_ID_LENGTH is not a positive integer", () => {
+    expect(() =>
+      parseEnv({ ...validEnv, SHORT_ID_LENGTH: "0" })
+    ).toThrow("Invalid environment configuration");
+
+    expect(() =>
+      parseEnv({ ...validEnv, SHORT_ID_LENGTH: "-1" })
     ).toThrow("Invalid environment configuration");
   });
 });
