@@ -44,3 +44,16 @@ export function slugHintFromUrl(url: string): string | null {
     return null;
   }
 }
+
+/**
+ * Generate a short random slug of the given length (default 6).
+ * Uses URL-safe alphanumeric characters.
+ */
+export function generateRandomSlug(length = 6): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let slug = '';
+  for (let i = 0; i < length; i++) {
+    slug += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return slug;
+}
