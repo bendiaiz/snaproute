@@ -1,82 +1,85 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { cloneLink, cloneResultToJson, LinkRecord } from './linkclone';
+import { describe, it, expect } from 'vitest';
+import { cloneLink, cloneResultToJson } from './linkclone';
 
-const baseLink: LinkRecord = {
-  url: 'https://example.com/original',
-  slug: 'abc123',
-  createdAt: '2024-01-01T00:00:00.000Z',
-  tags: ['marketing'],
-  expiresAt: '2025-01-01T00:00:00.000Z',
-};
+interface LinkRecord {
+  url: string;
+  slug: string;
+  createdAt: number;
+  tags?: string[];
+  utmParams?: Record<string, string>;
+  password?: string;
+  expiresAt?: number;
+}
+
+function makeLink(overrides: Partial<LinkRecord> = {}): LinkRecord {
+  return {
+    url: 'https://example.com/original',
+    slug: 'abc123',
+    createdAt: 1700000000000,
+    ...overrides,
+  };
+}
 
 describe('cloneLink', () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
+  it('creates a new link with a new slug', () => {
+    const original = makeLink();
+    const result = cloneLink(original, 'xyz789');
+    expect(result.slug).toBe('xyz789');
+    expect(result.url).toBe(original.url);
   });
 
-  it('creates a new record with the given slug', () => {
-    const result = cloneLink(baseLink, { newSlug: 'xyz789' });
-    expect(result.cloned.slug).toBe('xyz789');
+  it('resets createdAt to now', () => {
+    const before = Date.now();
+    const original = makeLink({ createdAt: 1000 });
+    const result = cloneLink(original, 'newslug');
+    expect(result.createdAt).toBeGreaterThanOrEqual(before);
   });
 
-  it('sets createdAt to now', () => {
-    const result = cloneLink(baseLink, { newSlug: 'xyz789' });
-    expect(result.cloned.createdAt).toBe('2024-06-15T12:00:00.000Z');
+  it('copies tags from original', () => {
+    const original = makeLink({ tags: ['promo', 'summer'] });
+    const result = cloneLink(original, 'newslug');
+    expect(result.tags).toEqual(['promo', 'summer']);
   });
 
-  it('preserves original fields by default', () => {
-    const result = cloneLink(baseLink, { newSlug: 'xyz789' });
-    expect(result.cloned.url).toBe(baseLink.url);
-    expect(result.cloned.tags).toEqual(['marketing']);
-    expect(result.cloned.expiresAt).toBe(baseLink.expiresAt);
+  it('copies utmParams from original', () => {
+    const original = makeLink({ utmParams: { utm_source: 'email' } });
+    const result = cloneLink(original, 'newslug');
+    expect(result.utmParams).toEqual({ utm_source: 'email' });
   });
 
-  it('applies overrides over original fields', () => {
-    const result = cloneLink(baseLink, {
-      newSlug: 'xyz789',
-      overrides: { url: 'https://example.com/new', tags: ['sales'] },
-    });
-    expect(result.cloned.url).toBe('https://example.com/new');
-    expect(result.cloned.tags).toEqual(['sales']);
+  it('does not copy password by default', () => {
+    const original = makeLink({ password: 'secret' });
+    const result = cloneLink(original, 'newslug');
+    expect(result.password).toBeUndefined();
   });
 
-  it('does not mutate the original record', () => {
-    cloneLink(baseLink, { newSlug: 'xyz789', overrides: { url: 'https://other.com' } });
-    expect(baseLink.url).toBe('https://example.com/original');
+  it('copies password when includePassword is true', () => {
+    const original = makeLink({ password: 'secret' });
+    const result = cloneLink(original, 'newslug', { includePassword: true });
+    expect(result.password).toBe('secret');
   });
 
-  it('returns the original record unchanged', () => {
-    const result = cloneLink(baseLink, { newSlug: 'xyz789' });
-    expect(result.original).toEqual(baseLink);
+  it('does not copy expiresAt by default', () => {
+    const original = makeLink({ expiresAt: 9999999999999 });
+    const result = cloneLink(original, 'newslug');
+    expect(result.expiresAt).toBeUndefined();
+  });
+
+  it('copies expiresAt when includeExpiry is true', () => {
+    const original = makeLink({ expiresAt: 9999999999999 });
+    const result = cloneLink(original, 'newslug', { includeExpiry: true });
+    expect(result.expiresAt).toBe(9999999999999);
   });
 });
 
 describe('cloneResultToJson', () => {
-  it('returns expected shape', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
-    const result = cloneLink(baseLink, { newSlug: 'xyz789' });
-    const json = cloneResultToJson(result);
-
-    expect(json.original).toMatchObject({ slug: 'abc123', url: baseLink.url });
-    expect(json.cloned).toMatchObject({ slug: 'xyz789', tags: ['marketing'] });
-  });
-
-  it('sets alias to null when not present', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
-    const result = cloneLink(baseLink, { newSlug: 'xyz789' });
-    const json = cloneResultToJson(result) as any;
-    expect(json.cloned.alias).toBeNull();
-  });
-
-  it('sets tags to empty array when not present', () => {
-    const noTagsLink = { ...baseLink, tags: undefined };
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
-    const result = cloneLink(noTagsLink, { newSlug: 'xyz789' });
-    const json = cloneResultToJson(result) as any;
-    expect(json.cloned.tags).toEqual([]);
+  it('returns expected json shape', () => {
+    const original = makeLink();
+    const cloned = cloneLink(original, 'newslug');
+    const json = cloneResultToJson(original, cloned, 'https://snap.to');
+    expect(json.originalSlug).toBe('abc123');
+    expect(json.clonedSlug).toBe('newslug');
+    expect(json.shortUrl).toBe('https://snap.to/newslug');
+    expect(json.url).toBe(cloned.url);
   });
 });
